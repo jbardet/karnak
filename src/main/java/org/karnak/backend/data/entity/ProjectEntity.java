@@ -9,6 +9,7 @@
  */
 package org.karnak.backend.data.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -76,6 +77,7 @@ public class ProjectEntity implements Serializable {
 		this.secretEntities = secretEntities;
 	}
 
+	@JsonIgnore
 	@OneToMany(mappedBy = "deIdentificationProjectEntity")
 	@LazyCollection(LazyCollectionOption.FALSE)
 	public List<DestinationEntity> getDestinationEntities() {

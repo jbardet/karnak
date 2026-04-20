@@ -9,6 +9,7 @@
  */
 package org.karnak.backend.data.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -59,6 +60,7 @@ public class SecretEntity implements Serializable {
 		this.id = id;
 	}
 
+	@JsonIgnore
 	@ManyToOne
 	@JoinColumn(name = "project_id")
 	public ProjectEntity getProjectEntity() {

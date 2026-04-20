@@ -24,6 +24,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.User;
@@ -78,6 +79,8 @@ public class SecurityInMemoryConfig {
 				.permitAll()
 				.loginProcessingUrl(LOGIN_URL)
 				.failureUrl(LOGIN_FAILURE_URL))
+			// Enable HTTP Basic authentication for API access
+			.httpBasic(Customizer.withDefaults())
 			// Configures the logout URL
 			.logout(logout -> logout.logoutSuccessUrl(LOGIN_URL))
 			.exceptionHandling(exceptionHandling -> exceptionHandling.accessDeniedPage(LOGIN_URL));
