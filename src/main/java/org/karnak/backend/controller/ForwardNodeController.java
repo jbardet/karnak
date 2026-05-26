@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import org.karnak.backend.constant.EndPoint;
 import org.karnak.backend.data.entity.DestinationEntity;
 import org.karnak.backend.data.entity.DicomSourceNodeEntity;
@@ -70,12 +71,17 @@ public class ForwardNodeController {
 
 	@Operation(summary = "Create a forward node")
 	@ApiResponses(value = { @ApiResponse(responseCode = "201", description = "Forward node created"),
+			@ApiResponse(responseCode = "400", description = "Missing or invalid fwdAeTitle", content = @Content),
 			@ApiResponse(responseCode = "409", description = "AE Title already exists", content = @Content) })
 	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<ForwardNodeEntity> createForwardNode(@RequestBody ForwardNodeEntity forwardNodeEntity) {
+		String aeTitle = forwardNodeEntity.getFwdAeTitle();
+		if (aeTitle == null || aeTitle.isBlank()) {
+			return ResponseEntity.badRequest().build();
+		}
 		boolean aeExists = forwardNodeService.getAllForwardNodes()
 			.stream()
-			.anyMatch(f -> f.getFwdAeTitle().equals(forwardNodeEntity.getFwdAeTitle()));
+			.anyMatch(f -> Objects.equals(f.getFwdAeTitle(), aeTitle));
 		if (aeExists) {
 			return ResponseEntity.status(409).build();
 		}
@@ -93,7 +99,9 @@ public class ForwardNodeController {
 		return node == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(node);
 	}
 
-	@Operation(summary = "Update a forward node")
+	@Operation(summary = "Update a forward node",
+			description = "Only fwdAeTitle and fwdDescription are updatable. "
+					+ "Source nodes and destinations are preserved (manage them via their own endpoints).")
 	@ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Forward node updated"),
 			@ApiResponse(responseCode = "404", description = "Forward node not found", content = @Content) })
 	@PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE,
@@ -104,9 +112,17 @@ public class ForwardNodeController {
 		if (existing == null) {
 			return ResponseEntity.notFound().build();
 		}
-		forwardNodeEntity.setId(id);
-		forwardNodeAPIService.updateForwardNode(forwardNodeEntity);
-		return ResponseEntity.ok(forwardNodeEntity);
+		// Merge only fwdAeTitle/fwdDescription onto existing entity so that the
+		// associated source nodes and destinations (cascade=ALL + orphanRemoval)
+		// are not silently wiped out by an incoming partial payload.
+		if (forwardNodeEntity.getFwdAeTitle() != null && !forwardNodeEntity.getFwdAeTitle().isBlank()) {
+			existing.setFwdAeTitle(forwardNodeEntity.getFwdAeTitle());
+		}
+		if (forwardNodeEntity.getFwdDescription() != null) {
+			existing.setFwdDescription(forwardNodeEntity.getFwdDescription());
+		}
+		forwardNodeAPIService.updateForwardNode(existing);
+		return ResponseEntity.ok(existing);
 	}
 
 	@Operation(summary = "Delete a forward node")

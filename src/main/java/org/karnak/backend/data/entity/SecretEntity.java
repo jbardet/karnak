@@ -71,6 +71,7 @@ public class SecretEntity implements Serializable {
 		this.projectEntity = projectEntity;
 	}
 
+	@JsonIgnore
 	public byte[] getSecretKey() {
 		return secretKey;
 	}

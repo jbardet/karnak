@@ -4,7 +4,12 @@ This document covers every REST API endpoint exposed by Karnak, with full reques
 
 **Base URL:** `http://localhost:8081`
 **Default credentials:** `admin` / `karnak`
-**Authentication:** HTTP Basic (all endpoints except `/api/echo/destinations`)
+**Authentication:** HTTP Basic (all endpoints except `/api/echo/destinations`).
+> HTTP Basic is enabled by the default in-memory IdP. When Karnak is started with
+> `IDP=oidc`, the HTTP Basic filter is **not** registered and these endpoints can
+> only be reached through an authenticated OAuth2 browser session. If you need
+> programmatic access in OIDC deployments, keep an admin user available via the
+> in-memory IdP or front the API with a service account / token proxy.
 
 ---
 
@@ -104,7 +109,7 @@ Create a new forward node.
 }
 ```
 
-**Response codes:** `201 Created`, `409 Conflict` (AE Title already exists)
+**Response codes:** `201 Created`, `400 Bad Request` (missing/blank `fwdAeTitle`), `409 Conflict` (AE Title already exists)
 
 ```bash
 curl -u admin:karnak -X POST http://localhost:8081/api/forward-nodes \
@@ -128,7 +133,10 @@ curl -u admin:karnak http://localhost:8081/api/forward-nodes/1
 
 ### `PUT /api/forward-nodes/{id}`
 
-Update a forward node. Only `fwdAeTitle` and `fwdDescription` need to be sent; the server preserves existing source nodes and destinations.
+Update a forward node. **Only `fwdAeTitle` and `fwdDescription` are updatable** —
+the server preserves existing source nodes and destinations even if they are
+absent (or empty) in the request body. To add/remove children, use the
+`/source-nodes` and `/destinations` sub-resources.
 
 **Request body:**
 ```json
@@ -572,6 +580,9 @@ curl -u admin:karnak http://localhost:8081/api/projects
 ]
 ```
 
+> The raw HMAC key bytes are **never** included in this response. Capture the
+> key once at creation time from `POST /api/projects/{id}/secrets`.
+
 ---
 
 ### `POST /api/projects`
@@ -650,7 +661,13 @@ curl -u admin:karnak -X DELETE http://localhost:8081/api/projects/1
 
 ## 7. Project Secrets
 
-Each project has an HMAC-SHA256 secret key used to pseudonymize patient identifiers. Only one secret is active at a time; adding a new one deactivates the previous.
+Each project has an HMAC-SHA256 secret key used to pseudonymize patient
+identifiers. Only one secret is active at a time; adding a new one deactivates
+the previous.
+
+> **The full hex key is only returned in the `POST /secrets` response.** It is
+> never echoed back from `GET /api/projects/...`. Store the value safely on
+> create — there is no read-back endpoint.
 
 ### `POST /api/projects/{id}/secrets`
 
@@ -658,9 +675,9 @@ Add or generate an HMAC secret for the project.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `hexKey` | string | no | 32-char hex string (16 bytes). Omit for auto-generation. Dashes are stripped automatically. |
+| `hexKey` | string | no | Exactly 32 hex characters (16 bytes). Omit for auto-generation. Dashes are stripped automatically; any other separators or non-hex characters are rejected with `400`. |
 
-**Response codes:** `201 Created`, `400 Bad Request` (invalid hex), `404 Not Found`
+**Response codes:** `201 Created`, `400 Bad Request` (invalid hex / wrong length), `404 Not Found`
 
 ```bash
 # Auto-generate a random key
@@ -737,7 +754,7 @@ Add a single patient mapping.
 | `patientBirthDate` | string | no | Format: `YYYY-MM-DD` |
 | `patientSex` | string | no | `M`, `F`, or `O` |
 
-**Response codes:** `201 Created`, `400 Bad Request`, `404 Not Found`, `409 Conflict` (patient already exists)
+**Response codes:** `201 Created`, `400 Bad Request` (missing pseudonym/patientId or malformed `patientBirthDate`), `404 Not Found`, `409 Conflict` (patient already exists)
 
 ```bash
 curl -u admin:karnak -X POST http://localhost:8081/api/projects/1/external-ids \
@@ -797,7 +814,7 @@ Update an existing patient mapping. The original record is identified by `{patie
 |-------------|---------|-------------|
 | `issuerId` | `""` | Issuer of patient ID (part of the cache lookup key) |
 
-**Response codes:** `200 OK`, `404 Not Found`
+**Response codes:** `200 OK`, `400 Bad Request` (malformed `patientBirthDate`), `404 Not Found`
 
 ```bash
 curl -u admin:karnak \
@@ -864,6 +881,10 @@ curl -u admin:karnak http://localhost:8081/api/auth-configs
 ]
 ```
 
+> `clientSecret` is **never** returned in responses (write-only). It can only be
+> set via `POST` or `PUT` and is encrypted at rest. There is no read-back of an
+> existing secret.
+
 ---
 
 ### `POST /api/auth-configs`
@@ -874,7 +895,7 @@ Create a new auth configuration.
 |-------|------|----------|-------------|
 | `code` | string | yes | Unique identifier (referenced in destinations) |
 | `clientId` | string | no | OAuth2 client ID |
-| `clientSecret` | string | no | OAuth2 client secret |
+| `clientSecret` | string | no | OAuth2 client secret (write-only; never returned by GET) |
 | `accessTokenUrl` | string | no | Token endpoint URL |
 | `scope` | string | no | OAuth2 scope |
 | `authConfigType` | string | no | Auth type — only `"OAUTH2"` supported (default) |
@@ -952,8 +973,8 @@ Query transfer records with optional filters and pagination.
 | `status` | string | `ALL` | One of: `ALL`, `SUCCESS`, `WARNING`, `ERROR` |
 | `start` | ISO datetime | — | From date-time (e.g. `2024-01-01T00:00:00`) |
 | `end` | ISO datetime | — | To date-time (e.g. `2024-12-31T23:59:59`) |
-| `page` | integer | `0` | Page number (0-based) |
-| `size` | integer | `50` | Records per page |
+| `page` | integer | `0` | Page number (0-based). Negative values are clamped to `0`. |
+| `size` | integer | `50` | Records per page (1–1000). Out-of-range values are clamped. |
 
 **Response codes:** `200 OK`
 

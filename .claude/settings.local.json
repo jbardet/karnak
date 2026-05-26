@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(command -v mvn)",
+      "Bash(mvn -q -DskipTests -o compile)"
+    ]
+  }
+}

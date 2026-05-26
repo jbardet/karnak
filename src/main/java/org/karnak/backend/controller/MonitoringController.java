@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 import org.karnak.backend.constant.EndPoint;
 import org.karnak.backend.data.entity.TransferStatusEntity;
 import org.karnak.backend.enums.TransferStatusType;
@@ -43,7 +44,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping(EndPoint.MONITORING_PATH)
 @Tag(name = "Monitoring", description = "API Endpoints for Transfer Monitoring")
+@Slf4j
 public class MonitoringController {
+
+	private static final int MAX_PAGE_SIZE = 1000;
 
 	private final TransferMonitoringService transferMonitoringService;
 
@@ -67,11 +71,13 @@ public class MonitoringController {
 			@Parameter(description = "Page number (0-based)") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "Page size") @RequestParam(defaultValue = "50") int size) {
 
+		int safePage = Math.max(0, page);
+		int safeSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
 		TransferStatusFilter filter = buildFilter(studyUid, serieUid, sopInstanceUid, status, start, end);
 		Page<TransferStatusEntity> result = transferMonitoringService.retrieveTransferStatusPageable(filter,
-				PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "transferDate")));
+				PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "transferDate")));
 		return ResponseEntity.ok(Map.of("content", result.getContent(), "totalElements", result.getTotalElements(),
-				"totalPages", result.getTotalPages(), "page", page, "size", size));
+				"totalPages", result.getTotalPages(), "page", safePage, "size", safeSize));
 	}
 
 	@Operation(summary = "Export transfer status records as CSV",
@@ -105,6 +111,7 @@ public class MonitoringController {
 				.body(csv);
 		}
 		catch (Exception e) {
+			log.error("Failed to export transfer status records", e);
 			return ResponseEntity.internalServerError().build();
 		}
 	}

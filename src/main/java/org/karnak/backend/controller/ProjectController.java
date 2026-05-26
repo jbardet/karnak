@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -84,7 +85,7 @@ public class ProjectController {
 
 	@Operation(summary = "Create a project", description = "Body: {\"name\": \"...\", \"profileId\": 1 (optional)}")
 	@ApiResponses(value = { @ApiResponse(responseCode = "201", description = "Project created"),
-			@ApiResponse(responseCode = "400", description = "Missing name", content = @Content),
+			@ApiResponse(responseCode = "400", description = "Missing name or invalid profileId", content = @Content),
 			@ApiResponse(responseCode = "404", description = "Profile not found", content = @Content) })
 	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<ProjectEntity> createProject(@RequestBody Map<String, Object> body) {
@@ -94,13 +95,15 @@ public class ProjectController {
 		}
 		ProjectEntity project = new ProjectEntity();
 		project.setName(name);
-		if (body.containsKey("profileId")) {
-			Long profileId = Long.valueOf(body.get("profileId").toString());
-			ProfileEntity profile = profilePipeService.getAllProfiles()
-				.stream()
-				.filter(p -> p.getId().equals(profileId))
-				.findFirst()
-				.orElse(null);
+		if (body.get("profileId") != null) {
+			Long profileId;
+			try {
+				profileId = Long.valueOf(body.get("profileId").toString());
+			}
+			catch (NumberFormatException e) {
+				return ResponseEntity.badRequest().build();
+			}
+			ProfileEntity profile = findProfileById(profileId);
 			if (profile == null) {
 				return ResponseEntity.notFound().build();
 			}
@@ -108,6 +111,14 @@ public class ProjectController {
 		}
 		ProjectEntity saved = projectService.save(project);
 		return ResponseEntity.status(201).body(saved);
+	}
+
+	private ProfileEntity findProfileById(Long profileId) {
+		return profilePipeService.getAllProfiles()
+			.stream()
+			.filter(p -> p.getId().equals(profileId))
+			.findFirst()
+			.orElse(null);
 	}
 
 	@Operation(summary = "Get a project by ID")
@@ -139,12 +150,14 @@ public class ProjectController {
 				project.setProfileEntity(null);
 			}
 			else {
-				Long profileId = Long.valueOf(profileIdRaw.toString());
-				ProfileEntity profile = profilePipeService.getAllProfiles()
-					.stream()
-					.filter(p -> p.getId().equals(profileId))
-					.findFirst()
-					.orElse(null);
+				Long profileId;
+				try {
+					profileId = Long.valueOf(profileIdRaw.toString());
+				}
+				catch (NumberFormatException e) {
+					return ResponseEntity.badRequest().build();
+				}
+				ProfileEntity profile = findProfileById(profileId);
 				if (profile == null) {
 					return ResponseEntity.notFound().build();
 				}
@@ -187,8 +200,14 @@ public class ProjectController {
 		byte[] keyBytes;
 		String hexInput = body != null ? body.get("hexKey") : null;
 		if (hexInput != null && !hexInput.isBlank()) {
+			String cleaned = hexInput.replace("-", "");
+			if (cleaned.length() != HMAC.KEY_BYTE_LENGTH * 2) {
+				return ResponseEntity.badRequest()
+					.body(Map.of("error",
+							"Invalid hex key: expected " + (HMAC.KEY_BYTE_LENGTH * 2) + " hex characters"));
+			}
 			try {
-				keyBytes = Hex.decodeHex(hexInput.replaceAll("-", ""));
+				keyBytes = Hex.decodeHex(cleaned);
 			}
 			catch (DecoderException e) {
 				return ResponseEntity.badRequest()
@@ -247,8 +266,13 @@ public class ProjectController {
 		String firstName = body.getOrDefault("patientFirstName", "");
 		String lastName = body.getOrDefault("patientLastName", "");
 		String issuer = body.getOrDefault("issuerOfPatientId", "");
-		LocalDate birthDate = body.containsKey("patientBirthDate") ? LocalDate.parse(body.get("patientBirthDate"))
-				: null;
+		LocalDate birthDate;
+		try {
+			birthDate = parseOptionalDate(body.get("patientBirthDate"));
+		}
+		catch (DateTimeParseException e) {
+			return ResponseEntity.badRequest().build();
+		}
 		String sex = body.getOrDefault("patientSex", "");
 		Patient patient = new Patient(pseudonym, patientId, firstName, lastName, birthDate, sex, issuer);
 		patient.setProjectID(id);
@@ -258,6 +282,13 @@ public class ProjectController {
 			return ResponseEntity.status(409).build();
 		}
 		return ResponseEntity.status(201).body(patient);
+	}
+
+	private static LocalDate parseOptionalDate(String value) {
+		if (value == null || value.isBlank()) {
+			return null;
+		}
+		return LocalDate.parse(value);
 	}
 
 	@Operation(summary = "Update a patient external ID mapping",
@@ -294,7 +325,16 @@ public class ProjectController {
 			existing.setIssuerOfPatientId(body.get("issuerOfPatientId"));
 		}
 		if (body.containsKey("patientBirthDate")) {
-			existing.setPatientBirthDate(LocalDate.parse(body.get("patientBirthDate")));
+			try {
+				existing.setPatientBirthDate(parseOptionalDate(body.get("patientBirthDate")));
+			}
+			catch (DateTimeParseException e) {
+				// Re-insert the original record before bailing so the in-memory cache state
+				// is restored — the remove() above must not be observed as a side-effect of
+				// a malformed update payload.
+				patientClient.put(oldKey, existing);
+				return ResponseEntity.badRequest().build();
+			}
 		}
 		if (body.containsKey("patientSex")) {
 			existing.setPatientSex(body.get("patientSex"));
@@ -360,8 +400,14 @@ public class ProjectController {
 			String issuer = p.getOrDefault("issuerOfPatientId", "");
 			String firstName = p.getOrDefault("patientFirstName", "");
 			String lastName = p.getOrDefault("patientLastName", "");
-			LocalDate birthDate = p.containsKey("patientBirthDate") ? LocalDate.parse(p.get("patientBirthDate"))
-					: null;
+			LocalDate birthDate;
+			try {
+				birthDate = parseOptionalDate(p.get("patientBirthDate"));
+			}
+			catch (DateTimeParseException e) {
+				skipped++;
+				continue;
+			}
 			String sex = p.getOrDefault("patientSex", "");
 			Patient patient = new Patient(pseudonym, patientId, firstName, lastName, birthDate, sex, issuer);
 			patient.setProjectID(id);

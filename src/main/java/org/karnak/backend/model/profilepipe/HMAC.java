@@ -56,6 +56,9 @@ public class HMAC {
 	}
 
 	public static String showHexKey(String key) {
+		if (key == null || key.length() < KEY_BYTE_LENGTH * 2) {
+			return key;
+		}
 		return String.format("%s-%s-%s-%s-%s", key.substring(0, 8), key.substring(8, 12), key.substring(12, 16),
 				key.substring(16, 20), key.substring(20));
 	}

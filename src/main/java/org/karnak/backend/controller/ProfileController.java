@@ -78,14 +78,21 @@ public class ProfileController {
 
 	@Operation(summary = "Upload a YAML profile", description = "Upload a YAML de-identification profile file")
 	@ApiResponses(value = { @ApiResponse(responseCode = "201", description = "Profile uploaded and saved"),
-			@ApiResponse(responseCode = "400", description = "Invalid YAML or profile validation errors",
+			@ApiResponse(responseCode = "400", description = "Invalid YAML, empty file, or unreadable upload",
 					content = @Content),
 			@ApiResponse(responseCode = "422", description = "Profile has validation errors", content = @Content) })
 	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<Map<String, Object>> uploadProfile(@RequestParam("file") MultipartFile file) {
+		if (file == null || file.isEmpty()) {
+			return ResponseEntity.badRequest().body(Map.of("error", "Uploaded file is empty"));
+		}
 		try (InputStream inputStream = file.getInputStream()) {
 			Yaml yaml = new Yaml(new Constructor(ProfilePipeBody.class, new LoaderOptions()));
 			ProfilePipeBody profilePipeBody = yaml.load(inputStream);
+			if (profilePipeBody == null) {
+				return ResponseEntity.badRequest()
+					.body(Map.of("error", "YAML did not produce a profile (empty or malformed root)"));
+			}
 			var errors = profilePipeService.validateProfile(profilePipeBody);
 			boolean hasErrors = errors.stream().anyMatch(e -> e.getError() != null);
 			if (hasErrors) {
