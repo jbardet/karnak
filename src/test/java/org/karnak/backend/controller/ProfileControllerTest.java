@@ -92,7 +92,8 @@ class ProfileControllerTest {
 	@Test
 	void uploadProfile_returns_422_when_profile_has_validation_errors() throws Exception {
 		// Build a minimal valid YAML that gets parsed but whose validation reports errors.
-		String yaml = "name: P\n" + "version: \"1.0\"\n" + "minimumKarnakVersion: \"1.0.0\"\n" + "profiles:\n"
+		// NOTE: the top-level key is "profileElements", matching ProfilePipeBody's setter.
+		String yaml = "name: P\n" + "version: \"1.0\"\n" + "minimumKarnakVersion: \"1.0.0\"\n" + "profileElements:\n"
 				+ "  - name: \"bad\"\n" + "    codename: \"not.a.real.codename\"\n";
 		MockMultipartFile file = new MockMultipartFile("file", "p.yml", "text/yaml", yaml.getBytes());
 

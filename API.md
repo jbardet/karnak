@@ -467,7 +467,7 @@ curl -u admin:karnak -X POST http://localhost:8081/api/profiles \
 name: My Custom Profile
 version: "1.0"
 minimumKarnakVersion: "1.0.0"
-profiles:
+profileElements:
   - name: "Remove patient name"
     codename: "action.on.specific.tags"
     action: "X"
