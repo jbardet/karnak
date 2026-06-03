@@ -9,7 +9,6 @@ WORKDIR /app
 # Build the Spring Boot application with layers
 COPY pom.xml .
 COPY src ./src
-COPY frontend frontend
 RUN mvn -B package -P production
 WORKDIR /app/bin
 RUN cp ../target/karnak*.jar application.jar

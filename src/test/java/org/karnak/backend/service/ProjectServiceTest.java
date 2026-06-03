@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.karnak.backend.data.entity.DestinationEntity;
 import org.karnak.backend.data.entity.ForwardNodeEntity;
 import org.karnak.backend.data.entity.ProjectEntity;
+import org.karnak.backend.data.repo.DestinationRepo;
 import org.karnak.backend.data.repo.ProjectRepo;
 import org.karnak.backend.model.event.NodeEvent;
 import org.mockito.Mockito;
@@ -34,6 +35,8 @@ class ProjectServiceTest {
 
 	// Repositories
 	private final ProjectRepo projectRepositoryMock = Mockito.mock(ProjectRepo.class);
+
+	private final DestinationRepo destinationRepoMock = Mockito.mock(DestinationRepo.class);
 
 	// Service
 	private ProjectService projectService;
@@ -49,8 +52,13 @@ class ProjectServiceTest {
 		Mockito.when(projectRepositoryMock.findAll()).thenReturn(Collections.singletonList(projectEntity));
 		Mockito.when(projectRepositoryMock.findById(Mockito.anyLong())).thenReturn(Optional.of(projectEntity));
 
+		Mockito.when(destinationRepoMock.findByDeIdentificationProjectEntityId(Mockito.anyLong()))
+			.thenReturn(Collections.emptyList());
+		Mockito.when(destinationRepoMock.findByTagMorphingProjectEntityId(Mockito.anyLong()))
+			.thenReturn(Collections.emptyList());
+
 		// Build mocked service
-		projectService = new ProjectService(projectRepositoryMock, applicationEventPublisherMock);
+		projectService = new ProjectService(projectRepositoryMock, destinationRepoMock, applicationEventPublisherMock);
 	}
 
 	@Test

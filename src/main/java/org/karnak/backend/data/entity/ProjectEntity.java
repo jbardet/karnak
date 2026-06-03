@@ -111,6 +111,7 @@ public class ProjectEntity implements Serializable {
 	 * @param secretEntity Secret to add
 	 */
 	public void addActiveSecretEntity(SecretEntity secretEntity) {
+		secretEntity.setProjectEntity(this);
 		applyActiveSecret(secretEntity);
 		secretEntities.add(secretEntity);
 	}

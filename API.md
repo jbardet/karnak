@@ -4,12 +4,34 @@ This document covers every REST API endpoint exposed by Karnak, with full reques
 
 **Base URL:** `http://localhost:8081`
 **Default credentials:** `admin` / `karnak`
-**Authentication:** HTTP Basic (all endpoints except `/api/echo/destinations`).
-> HTTP Basic is enabled by the default in-memory IdP. When Karnak is started with
-> `IDP=oidc`, the HTTP Basic filter is **not** registered and these endpoints can
-> only be reached through an authenticated OAuth2 browser session. If you need
-> programmatic access in OIDC deployments, keep an admin user available via the
-> in-memory IdP or front the API with a service account / token proxy.
+**Authentication:** Spring form-login session cookie (all endpoints except `/api/echo/destinations`).
+> The running Karnak image registers a form-login filter, not HTTP Basic, on the
+> REST API.  Programmatic clients must POST credentials to `/login` once and carry
+> the resulting `JSESSIONID` cookie on every subsequent request.  The helper
+> library `_karnak_api.py` handles this automatically via `KarnakClient`.
+>
+> ```
+> POST /login
+> Content-Type: application/x-www-form-urlencoded
+>
+> username=admin&password=karnak
+> ```
+>
+> On success Karnak responds `302` to `/`; on failure `302` to `/login?error`.
+> The `curl` examples below use `--cookie-jar` / `--cookie` to replicate this:
+>
+> ```bash
+> # Obtain session cookie
+> curl -c /tmp/karnak.jar -X POST http://localhost:8081/login \
+>   -d "username=admin&password=karnak"
+>
+> # Use the cookie for API calls
+> curl -b /tmp/karnak.jar http://localhost:8081/api/forward-nodes
+> ```
+>
+> When Karnak is started with `IDP=oidc`, the form-login endpoint uses OIDC
+> instead of in-memory credentials and these API calls can only be reached
+> through an authenticated OAuth2 browser session.
 
 ---
 
@@ -269,6 +291,17 @@ Add a destination.
 | `useaetdest` | boolean | no | Use destination AET as calling AET |
 | `desidentification` | boolean | no | Enable de-identification |
 | `deIdentificationProject` | object | no | `{"id": N}` — project to use for de-identification |
+| `pseudonymType` | string | no | How the external pseudonym is resolved when de-identification is enabled (default: `CACHE_EXTID`). See [Pseudonym type](#pseudonym-type-de-identification) below. |
+| `issuerByDefault` | string | no | Default Issuer of Patient ID used with Patient ID for unique identification |
+| `tag` | string | no | DICOM tag (8 hex digits, e.g. `00100010`) — required for `EXTID_IN_TAG` |
+| `delimiter` | string | no | Delimiter to split tag value — required when `position` > 0 for `EXTID_IN_TAG` |
+| `position` | integer | no | Zero-based index after split — required when `delimiter` is set for `EXTID_IN_TAG` |
+| `savePseudonym` | boolean | no | Store pseudonym read from DICOM tag in cache (`EXTID_IN_TAG` only) |
+| `pseudonymUrl` | string | no | External API URL (DICOM expressions allowed) — required for `EXTID_API` |
+| `method` | string | no | `GET` or `POST` — required for `EXTID_API` |
+| `responsePath` | string | no | JSON path to pseudonym in API response — required for `EXTID_API` |
+| `body` | string | no | JSON request body — required for `EXTID_API` when `method` is `POST` |
+| `authConfig` | string | no | Auth config code (from `/api/auth-configs`) for `EXTID_API` |
 | `activateTagMorphing` | boolean | no | Enable tag morphing |
 | `tagMorphingProject` | object | no | `{"id": N}` — project for tag morphing |
 | `activateNotification` | boolean | no | Enable email notifications |
@@ -314,6 +347,75 @@ curl -u admin:karnak -X POST http://localhost:8081/api/forward-nodes/1/destinati
   }'
 ```
 
+#### Pseudonym type (de-identification)
+
+When `desidentification` is `true`, `pseudonymType` selects how Karnak obtains the **external pseudonym** before applying the project profile. Use the **enum name** in JSON (not the UI label).
+
+| Value | Description | Additional fields |
+|-------|-------------|-------------------|
+| `CACHE_EXTID` | Lookup in the project's external-ID cache (default) | Pre-load mappings via `POST /api/projects/{id}/external-ids` |
+| `EXTID_IN_TAG` | Read from a DICOM tag (optional split by delimiter) | `tag`, optional `delimiter` + `position`, optional `savePseudonym` |
+| `EXTID_API` | HTTP call to an external service | `pseudonymUrl`, `method`, `responsePath`, optional `body` (POST), optional `authConfig` |
+
+**DICOM destination — pseudonym from cache (default):**
+
+```bash
+curl -u admin:karnak -X POST http://localhost:8081/api/forward-nodes/1/destinations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "destinationType": "dicom",
+    "aeTitle": "ARCHIVE_ANON",
+    "hostname": "192.168.1.20",
+    "port": 11112,
+    "activate": true,
+    "desidentification": true,
+    "deIdentificationProject": {"id": 1},
+    "pseudonymType": "CACHE_EXTID"
+  }'
+```
+
+**DICOM destination — pseudonym in a DICOM tag:**
+
+```bash
+curl -u admin:karnak -X POST http://localhost:8081/api/forward-nodes/1/destinations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "destinationType": "dicom",
+    "aeTitle": "ARCHIVE_ANON",
+    "hostname": "192.168.1.20",
+    "port": 11112,
+    "activate": true,
+    "desidentification": true,
+    "deIdentificationProject": {"id": 1},
+    "pseudonymType": "EXTID_IN_TAG",
+    "tag": "00100010",
+    "delimiter": "^",
+    "position": 0
+  }'
+```
+
+**DICOM destination — pseudonym from external API:**
+
+```bash
+curl -u admin:karnak -X POST http://localhost:8081/api/forward-nodes/1/destinations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "destinationType": "dicom",
+    "aeTitle": "ARCHIVE_ANON",
+    "hostname": "192.168.1.20",
+    "port": 11112,
+    "activate": true,
+    "desidentification": true,
+    "deIdentificationProject": {"id": 1},
+    "pseudonymType": "EXTID_API",
+    "pseudonymUrl": "https://pseudonym.example.com/lookup?patientId={PatientID}",
+    "method": "GET",
+    "responsePath": "$.pseudonym"
+  }'
+```
+
+To change `pseudonymType` on an existing destination, `GET` the destination, update the field (and type-specific fields), then `PUT` the full object to `/api/forward-nodes/{id}/destinations/{destinationId}`.
+
 #### STOW-RS destination
 
 | Field | Type | Required | Description |
@@ -327,6 +429,17 @@ curl -u admin:karnak -X POST http://localhost:8081/api/forward-nodes/1/destinati
 | `authConfig` | string | no | Auth config code (from `/api/auth-configs`) |
 | `desidentification` | boolean | no | Enable de-identification |
 | `deIdentificationProject` | object | no | `{"id": N}` |
+| `pseudonymType` | string | no | Same as DICOM — see [Pseudonym type](#pseudonym-type-de-identification) |
+| `issuerByDefault` | string | no | Default Issuer of Patient ID |
+| `tag` | string | no | For `EXTID_IN_TAG` |
+| `delimiter` | string | no | For `EXTID_IN_TAG` |
+| `position` | integer | no | For `EXTID_IN_TAG` |
+| `savePseudonym` | boolean | no | For `EXTID_IN_TAG` |
+| `pseudonymUrl` | string | no | For `EXTID_API` |
+| `method` | string | no | For `EXTID_API` |
+| `responsePath` | string | no | For `EXTID_API` |
+| `body` | string | no | For `EXTID_API` (POST) |
+| `authConfig` | string | no | For `EXTID_API` or STOW OAuth |
 | `activateTagMorphing` | boolean | no | Enable tag morphing |
 | `tagMorphingProject` | object | no | `{"id": N}` |
 | `activateNotification` | boolean | no | Enable email notifications |
@@ -1130,7 +1243,8 @@ curl -s -u $CREDS -X POST $BASE/api/forward-nodes/$NODE_ID/destinations \
     \"port\": 11112,
     \"activate\": true,
     \"desidentification\": true,
-    \"deIdentificationProject\": {\"id\": $PROJECT_ID}
+    \"deIdentificationProject\": {\"id\": $PROJECT_ID},
+    \"pseudonymType\": \"CACHE_EXTID\"
   }" > /dev/null
 
 echo "=== 8. Add a STOW-RS destination with OAuth2 ==="
