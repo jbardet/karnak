@@ -1,6 +1,10 @@
 # To build, run the following command from the top level project directory:
 #
-# docker build -t osirixfoundation/karnak:latest -f Dockerfile .
+# docker build -t jbardet97/karnak-endpoints:<upstream-version>-api.<n> .
+#
+# Do NOT tag this image as osirixfoundation/karnak — that shadows the
+# upstream image, which does not contain this fork's REST API endpoints,
+# and makes digest pins in consuming repos silently wrong.
 
 # Based on build image containing maven, jdk and git
 FROM maven:3.9-eclipse-temurin-21-jammy AS builder
