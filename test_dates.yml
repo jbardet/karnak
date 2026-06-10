@@ -47,26 +47,13 @@ profileElements:
   - "(0040,0003)"
   - "(0040,0005)"
   - "(0040,0245)"
-- name: "Add private tag for day shift value"
-  codename: "action.add.private.tag"
-  arguments:
-    value: "0"
-    vr: "LO"
-    privateCreator: "CHUV_DEV_TML"
-  tags:
-    - "(000B,1003)"
-- name: "Get day shift value from API"
-  codename: "action.replace.api"
+- name: "Shift dates for 25 tags from API"
+  codename: "action.on.dates"
+  option: "shift_from_api"
   condition: "tagIsPresent(#Tag.PatientID)"
   arguments:
-    responsePath: "/value"
     url: "http://host.docker.internal:5000/patient/{{getString(#Tag.PatientID)}}/day-shift"
-    defaultValue: "0"
-  tags:
-    - "(000B,1003)"
-- name: "Shift dates for 25 tags by private tag value"
-  codename: "action.on.dates"
-  option: "shift_by_tag"
+    days_path: "/value"
   tags:
   - "(0008,0012)"
   - "(0008,0020)"
@@ -93,8 +80,6 @@ profileElements:
   - "(0040,0244)"
   - "(0040,0250)"
   - "(3006,0008)"
-  arguments:
-    days_tag: "(000B,1003)"
 - name: "Hash UIDs for 26 tags"
   codename: "expression.on.tags"
   tags:
