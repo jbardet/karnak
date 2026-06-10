@@ -33,8 +33,13 @@ Usage
 
 import argparse
 import sys
+from pathlib import Path
 
-from _karnak_api import ApiError, AuthenticationError, KarnakClient, KarnakError
+# The client lives in python-client/ (installable as karnak-api-client); the
+# path insert lets this script run from a bare checkout without pip install.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "python-client"))
+
+from karnak_api_client import ApiError, AuthenticationError, KarnakClient, KarnakError  # noqa: E402
 
 PSEUDONYM_TYPES = ("CACHE_EXTID", "EXTID_IN_TAG", "EXTID_API")
 
