@@ -1,0 +1,72 @@
+services:
+  karnak:
+    container_name: karnak
+    image: osirixfoundation/karnak:timing
+    ports:
+      - "11119:11119"
+      - "8080:8081"
+    volumes:
+      - ./processed-dicoms:/app/archive
+    environment:
+      KARNAK_WAIT_FOR: karnak-db:5432
+      REDIS_HOST: karnak-cache
+      GATEWAY_ARCHIVE_STORAGE_PATH: /app/archive
+      # Database connection
+      DB_HOST: karnak-db
+      DB_PORT: 5432
+      DB_NAME: karnak
+      DB_USER: karnak
+      DB_PASSWORD: karnak
+      # Admin login
+      KARNAK_LOGIN_ADMIN: admin
+      KARNAK_LOGIN_PASSWORD: admin
+      # Logging configuration for timing visibility
+      ENVIRONMENT: DEV
+      LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_ORG_KARNAK: INFO
+    env_file: karnak.env
+    depends_on:
+      - karnak-db
+      - karnak-cache
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+    networks:
+      - karnak-data
+      - karnak-network
+
+  karnak-cache:
+    container_name: karnak-cache
+    image: redis:7-alpine
+    networks:
+      - karnak-data
+
+  karnak-db:
+    container_name: karnak-db
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_DB=karnak
+      - POSTGRES_USER=karnak
+      - POSTGRES_PASSWORD=karnak
+    volumes:
+      - karnak-db-data:/var/lib/postgresql/data
+    networks:
+      - karnak-data
+
+volumes:
+  karnak-db-data:
+
+networks:
+  karnak-data:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.0.0/24
+          gateway: 172.19.0.1
+  karnak-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.1.0/24
+          gateway: 172.19.1.1

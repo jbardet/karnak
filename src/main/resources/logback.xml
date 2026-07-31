@@ -13,6 +13,8 @@
             </root>
             <logger name="org.weasis" level="debug" />
             <logger name="org.karnak" level="debug" />
+            <logger name="org.karnak.backend.util.DicomProcessingTimer" level="info" />
+        
         </then>
         <!--
         PRODUCTION LOGS
@@ -80,6 +82,26 @@
                     <Pattern>%d SOPInstanceUID_OLD=%X{SOPInstanceUID} SOPInstanceUID_NEW=%X{DeidentifySOPInstanceUID} SeriesInstanceUID_OLD=%X{SeriesInstanceUID} SeriesInstanceUID_NEW=%X{DeidentifySeriesInstanceUID} ProjectName=%X{ProjectName} ProfileName=%X{ProfileName} ProfileCodenames=%X{ProfileCodenames}</Pattern>
                 </encoder>
             </appender>
+            
+            <appender name="TIMING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                <file>${LOGS}/Timing/timing.log</file>
+                <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+                    <fileNamePattern>${LOGS}/Timing/timing_%i.log</fileNamePattern>
+                    <minIndex>${KARNAK_TIMING_LOGS_MIN_INDEX:-1}</minIndex>
+                    <maxIndex>${KARNAK_TIMING_LOGS_MAX_INDEX:-10}</maxIndex>
+                </rollingPolicy>
+
+                <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+                    <maxFileSize>${KARNAK_TIMING_LOGS_MAX_FILE_SIZE:-50MB}</maxFileSize>
+                </triggeringPolicy>
+
+                <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+                    <level>INFO</level>
+                </filter>
+                <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                    <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</Pattern>
+                </encoder>
+            </appender>
 
             <root level="warn">
                 <appender-ref ref="ALL_LOGS" />
@@ -88,6 +110,10 @@
             </root>
             <logger name="org.weasis" level="info" />
             <logger name="org.karnak" level="info" />
+            <logger name="org.karnak.backend.util.DicomProcessingTimer" level="info" additivity="false">
+                <appender-ref ref="TIMING_FILE" />
+                <appender-ref ref="ALL_LOGS" />
+            </logger>
         </else>
     </if>
 </configuration>

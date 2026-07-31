@@ -40,6 +40,7 @@ import org.karnak.backend.dicom.ForwardDicomNode;
 import org.karnak.backend.dicom.Params;
 import org.karnak.backend.dicom.WebForwardDestination;
 import org.karnak.backend.exception.AbortException;
+import org.karnak.backend.util.DicomProcessingTimer;
 import org.karnak.backend.model.event.TransferMonitoringEvent;
 import org.karnak.backend.model.image.TransformedPlanarImage;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -165,10 +166,16 @@ public class ForwardService {
 		List<File> files;
 		Attributes attributesOriginal = new Attributes();
 		Attributes attributesToSend = new Attributes();
+		String sopInstanceUID = p.getIuid();
+		
 		try {
 			if (!streamSCU.isReadyForDataTransfer()) {
 				throw new IllegalStateException("Association not ready for transfer.");
 			}
+			
+			// Start DICOM reading phase
+			DicomProcessingTimer.startPhase(sopInstanceUID, DicomProcessingTimer.Phase.DICOM_READ);
+			
 			DataWriter dataWriter;
 			String cuid = p.getCuid();
 			String iuid = p.getIuid();
@@ -193,6 +200,10 @@ public class ForwardService {
 				if (copy != null) {
 					copy.addAll(attributes);
 				}
+				
+				// End DICOM reading, start Karnak processing
+				DicomProcessingTimer.endPhase(sopInstanceUID, DicomProcessingTimer.Phase.DICOM_READ);
+				DicomProcessingTimer.startPhase(sopInstanceUID, DicomProcessingTimer.Phase.KARNAK_PROCESS);
 
 				if (!editors.isEmpty()) {
 					editors.forEach(e -> e.apply(attributes, context));
@@ -214,15 +225,28 @@ public class ForwardService {
 							"DICOM association abort: " + context.getAbortMessage());
 				}
 				dataWriter = buildDataWriterFromTransformedImage(syntax, context, attributes, transformedPlanarImage);
+				
+				// End Karnak processing
+				DicomProcessingTimer.endPhase(sopInstanceUID, DicomProcessingTimer.Phase.KARNAK_PROCESS);
 			}
+			
+			// Start DICOM writing phase
+			DicomProcessingTimer.startPhase(sopInstanceUID, DicomProcessingTimer.Phase.DICOM_WRITE);
 
 			launchCStore(p, streamSCU, dataWriter, cuid, iuid, syntax, transformedPlanarImage);
+			
+			// End DICOM writing phase
+			DicomProcessingTimer.endPhase(sopInstanceUID, DicomProcessingTimer.Phase.DICOM_WRITE);
 
 			progressNotify(destination, p.getIuid(), p.getCuid(), false, streamSCU);
 			monitor(sourceNode.getId(), destination.getId(), attributesOriginal, attributesToSend, true, false, null,
 					attributesOriginal.getString(Tag.Modality), p.getCuid());
+			
+			// Complete timing and log final summary
+			DicomProcessingTimer.completeTiming(sopInstanceUID);
 		}
 		catch (AbortException e) {
+			DicomProcessingTimer.cleanupTiming(sopInstanceUID);
 			progressNotify(destination, p.getIuid(), p.getCuid(), true, streamSCU);
 			monitor(sourceNode.getId(), destination.getId(), attributesOriginal, attributesToSend, false, false,
 					e.getMessage(), attributesOriginal.getString(Tag.Modality), p.getCuid());
@@ -231,12 +255,14 @@ public class ForwardService {
 			}
 		}
 		catch (IOException e) {
+			DicomProcessingTimer.cleanupTiming(sopInstanceUID);
 			progressNotify(destination, p.getIuid(), p.getCuid(), true, streamSCU);
 			monitor(sourceNode.getId(), destination.getId(), attributesOriginal, attributesToSend, false, true,
 					e.getMessage(), attributesOriginal.getString(Tag.Modality), p.getCuid());
 			throw e;
 		}
 		catch (Exception e) {
+			DicomProcessingTimer.cleanupTiming(sopInstanceUID);
 			if (e instanceof InterruptedException) {
 				Thread.currentThread().interrupt();
 			}
@@ -406,17 +432,30 @@ public class ForwardService {
 		List<File> files;
 		Attributes attributesToSend = new Attributes();
 		Attributes attributesOriginal = new Attributes();
+		String sopInstanceUID = p.getIuid();
+		
 		try {
 			List<AttributeEditor> editors = destination.getDicomEditors();
 			DicomStowRS stow = destination.getStowrsSingleFile();
 			var syntax = new AdaptTransferSyntax(p.getTsuid(), destination.getOutputTransferSyntax(p.getTsuid()));
 
 			if (syntax.getRequested().equals(p.getTsuid()) && copy == null && editors.isEmpty()) {
+				// Start DICOM reading phase
+				DicomProcessingTimer.startPhase(sopInstanceUID, DicomProcessingTimer.Phase.DICOM_READ);
+				
 				Attributes fmi = Attributes.createFileMetaInformation(p.getIuid(), p.getCuid(), syntax.getRequested());
 				try (InputStream stream = p.getData()) {
 					attributesToSend = new DicomInputStream(p.getData()).readDataset();
 					attributesOriginal.addAll(attributesToSend);
+					
+					// End DICOM reading, start DICOM writing (no processing for this path)
+					DicomProcessingTimer.endPhase(sopInstanceUID, DicomProcessingTimer.Phase.DICOM_READ);
+					DicomProcessingTimer.startPhase(sopInstanceUID, DicomProcessingTimer.Phase.DICOM_WRITE);
+					
 					stow.uploadDicom(stream, fmi);
+					
+					// End DICOM writing
+					DicomProcessingTimer.endPhase(sopInstanceUID, DicomProcessingTimer.Phase.DICOM_WRITE);
 				}
 				catch (HttpException httpException) {
 					if (httpException.getStatusCode() != 409) {
@@ -428,6 +467,9 @@ public class ForwardService {
 				}
 			}
 			else {
+				// Start DICOM reading phase
+				DicomProcessingTimer.startPhase(sopInstanceUID, DicomProcessingTimer.Phase.DICOM_READ);
+				
 				AttributeEditorContext context = new AttributeEditorContext(p.getTsuid(), fwdNode, null);
 				in = new DicomInputStream(p.getData(), p.getTsuid());
 				in.setIncludeBulkData(IncludeBulkData.URI);
@@ -437,6 +479,11 @@ public class ForwardService {
 				if (copy != null) {
 					copy.addAll(attributes);
 				}
+				
+				// End DICOM reading, start Karnak processing
+				DicomProcessingTimer.endPhase(sopInstanceUID, DicomProcessingTimer.Phase.DICOM_READ);
+				DicomProcessingTimer.startPhase(sopInstanceUID, DicomProcessingTimer.Phase.KARNAK_PROCESS);
+				
 				if (!editors.isEmpty()) {
 					editors.forEach(e -> e.apply(attributes, context));
 				}
@@ -455,18 +502,30 @@ public class ForwardService {
 				}
 
 				BytesWithImageDescriptor desc = ImageAdapter.imageTranscode(attributes, syntax, context);
+				
+				// End Karnak processing, start DICOM writing
+				DicomProcessingTimer.endPhase(sopInstanceUID, DicomProcessingTimer.Phase.KARNAK_PROCESS);
+				DicomProcessingTimer.startPhase(sopInstanceUID, DicomProcessingTimer.Phase.DICOM_WRITE);
+				
 				if (desc == null) {
 					stow.uploadDicom(attributes, syntax.getOriginal());
 				}
 				else {
 					uploadPayLoadFromTransformedImage(stow, syntax, context, attributes, desc);
 				}
+				
+				// End DICOM writing
+				DicomProcessingTimer.endPhase(sopInstanceUID, DicomProcessingTimer.Phase.DICOM_WRITE);
 			}
 			progressNotify(destination, p.getIuid(), p.getCuid(), false, 0);
 			monitor(fwdNode.getId(), destination.getId(), attributesOriginal, attributesToSend, true, false,null,
 					attributesOriginal.getString(Tag.Modality), p.getCuid());
+			
+			// Complete timing and log final summary
+			DicomProcessingTimer.completeTiming(sopInstanceUID);
 		}
 		catch (AbortException e) {
+			DicomProcessingTimer.cleanupTiming(sopInstanceUID);
 			progressNotify(destination, p.getIuid(), p.getCuid(), true, 0);
 			monitor(fwdNode.getId(), destination.getId(), attributesOriginal, attributesToSend, false, false, e.getMessage(),
 					attributesOriginal.getString(Tag.Modality), p.getCuid());
@@ -475,12 +534,14 @@ public class ForwardService {
 			}
 		}
 		catch (IOException e) {
+			DicomProcessingTimer.cleanupTiming(sopInstanceUID);
 			progressNotify(destination, p.getIuid(), p.getCuid(), true, 0);
 			monitor(fwdNode.getId(), destination.getId(), attributesOriginal, attributesToSend, false, true, e.getMessage(),
 					attributesOriginal.getString(Tag.Modality), p.getCuid());
 			throw e;
 		}
 		catch (Exception e) {
+			DicomProcessingTimer.cleanupTiming(sopInstanceUID);
 			progressNotify(destination, p.getIuid(), p.getCuid(), true, 0);
 			monitor(fwdNode.getId(), destination.getId(), attributesOriginal, attributesToSend, false, true, e.getMessage(),
 					attributesOriginal.getString(Tag.Modality), p.getCuid());

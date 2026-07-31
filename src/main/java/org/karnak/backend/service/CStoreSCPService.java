@@ -35,6 +35,7 @@ import org.karnak.backend.data.repo.DestinationRepo;
 import org.karnak.backend.dicom.ForwardDestination;
 import org.karnak.backend.dicom.ForwardDicomNode;
 import org.karnak.backend.dicom.Params;
+import org.karnak.backend.util.DicomProcessingTimer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.weasis.dicom.param.DicomNode;
@@ -78,44 +79,51 @@ public class CStoreSCPService extends BasicCStoreSCP {
 	@Override
 	protected void store(Association as, PresentationContext pc, Attributes rq, PDVInputStream data, Attributes rsp)
 			throws IOException {
-		Optional<ForwardDicomNode> sourceNode = destinations.keySet()
-			.stream()
-			.filter(n -> n.getForwardAETitle().equals(as.getCalledAET()))
-			.findFirst();
-		if (sourceNode.isEmpty()) {
-			throw new IllegalStateException("Cannot find the forward AeTitle " + as.getCalledAET());
-		}
-		ForwardDicomNode fwdNode = sourceNode.get();
-		List<ForwardDestination> destList = destinations.get(fwdNode);
-		if (destList == null || destList.isEmpty()) {
-			throw new IllegalStateException("No DICOM destinations for " + fwdNode);
-		}
-
-		DicomNode callingNode = DicomNode.buildRemoteDicomNode(as);
-		Set<DicomNode> srcNodes = fwdNode.getAcceptedSourceNodes();
-		boolean valid = srcNodes.isEmpty() || srcNodes.stream()
-			.anyMatch(n -> n.getAet().equals(callingNode.getAet())
-					&& (!n.isValidateHostname() || n.equalsHostname(callingNode.getHostname())));
-		if (!valid) {
-			rsp.setInt(Tag.Status, VR.US, Status.NotAuthorized);
-			log.error("Refused: not authorized (124H). Source node: {}. SopUID: {}", callingNode,
-					rq.getString(Tag.AffectedSOPInstanceUID));
-			return;
-		}
-
-		rsp.setInt(Tag.Status, VR.US, status);
-
+		String sopInstanceUID = rq.getString(Tag.AffectedSOPInstanceUID);
+		
+		// Start timing for this DICOM instance
+		DicomProcessingTimer.startTiming(sopInstanceUID);
+		
 		try {
-			Params p = new Params(rq.getString(Tag.AffectedSOPInstanceUID), rq.getString(Tag.AffectedSOPClassUID),
+			Optional<ForwardDicomNode> sourceNode = destinations.keySet()
+				.stream()
+				.filter(n -> n.getForwardAETitle().equals(as.getCalledAET()))
+				.findFirst();
+			if (sourceNode.isEmpty()) {
+				throw new IllegalStateException("Cannot find the forward AeTitle " + as.getCalledAET());
+			}
+			ForwardDicomNode fwdNode = sourceNode.get();
+			List<ForwardDestination> destList = destinations.get(fwdNode);
+			if (destList == null || destList.isEmpty()) {
+				throw new IllegalStateException("No DICOM destinations for " + fwdNode);
+			}
+
+			DicomNode callingNode = DicomNode.buildRemoteDicomNode(as);
+			Set<DicomNode> srcNodes = fwdNode.getAcceptedSourceNodes();
+			boolean valid = srcNodes.isEmpty() || srcNodes.stream()
+				.anyMatch(n -> n.getAet().equals(callingNode.getAet())
+						&& (!n.isValidateHostname() || n.equalsHostname(callingNode.getHostname())));
+			if (!valid) {
+				rsp.setInt(Tag.Status, VR.US, Status.NotAuthorized);
+				log.error("Refused: not authorized (124H). Source node: {}. SopUID: {}", callingNode, sopInstanceUID);
+				DicomProcessingTimer.cleanupTiming(sopInstanceUID);
+				return;
+			}
+
+			rsp.setInt(Tag.Status, VR.US, status);
+
+			Params p = new Params(sopInstanceUID, rq.getString(Tag.AffectedSOPClassUID),
 					pc.getTransferSyntax(), priority, data, as);
 
 			// Update transfer status of destinations
 			updateTransferStatus(destList);
 
+			// Forward to the service which will handle detailed timing
 			forwardService.storeMultipleDestination(fwdNode, destList, p);
 
 		}
 		catch (Exception e) {
+			DicomProcessingTimer.cleanupTiming(sopInstanceUID);
 			throw new DicomServiceException(Status.ProcessingFailure, e);
 		}
 	}

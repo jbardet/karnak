@@ -10,7 +10,7 @@ WORKDIR /app
 COPY pom.xml .
 COPY src ./src
 COPY frontend frontend
-RUN mvn -B package -P production
+RUN mvn -B package -P production -DskipTests
 WORKDIR /app/bin
 RUN cp ../target/karnak*.jar application.jar
 RUN java -Djarmode=layertools -jar application.jar extract

@@ -37,8 +37,10 @@ import static org.springframework.security.oauth2.client.web.client.RequestAttri
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 @Service
 public class EndpointService {
@@ -99,7 +101,16 @@ public class EndpointService {
         if (authConfig != null && !authConfig.isEmpty()) {
             return getAuthConfiguredRestClient(authConfig).get().uri(url)
                     .attributes(clientRegistrationId(authConfig))
-                    .retrieve().body(String.class);
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
+                        throw new HttpClientErrorException(response.getStatusCode(), 
+                            "HTTP " + response.getStatusCode().value() + " " + response.getStatusCode().toString() + " for URL: " + url);
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
+                        throw new HttpClientErrorException(response.getStatusCode(), 
+                            "HTTP " + response.getStatusCode().value() + " " + response.getStatusCode().toString() + " for URL: " + url);
+                    })
+                    .body(String.class);
         } else {
             return get(url);
         }
@@ -111,7 +122,16 @@ public class EndpointService {
             return getAuthConfiguredRestClient(authConfig).post().uri(url)
                     .attributes(clientRegistrationId(authConfig))
                     .body(body).contentType(MediaType.APPLICATION_JSON)
-                    .retrieve().body(String.class);
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
+                        throw new HttpClientErrorException(response.getStatusCode(), 
+                            "HTTP " + response.getStatusCode().value() + " " + response.getStatusCode().toString() + " for URL: " + url);
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
+                        throw new HttpClientErrorException(response.getStatusCode(), 
+                            "HTTP " + response.getStatusCode().value() + " " + response.getStatusCode().toString() + " for URL: " + url);
+                    })
+                    .body(String.class);
         } else {
             return post(url, body);
         }
@@ -120,7 +140,16 @@ public class EndpointService {
     @Cacheable(value = "endpoint.cache")
     public String get(String url) {
         return getNoAuthRestClient().get().uri(url)
-                    .retrieve().body(String.class);
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
+                        throw new HttpClientErrorException(response.getStatusCode(), 
+                            "HTTP " + response.getStatusCode().value() + " " + response.getStatusCode().toString() + " for URL: " + url);
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
+                        throw new HttpClientErrorException(response.getStatusCode(), 
+                            "HTTP " + response.getStatusCode().value() + " " + response.getStatusCode().toString() + " for URL: " + url);
+                    })
+                    .body(String.class);
 
     }
 
@@ -128,7 +157,16 @@ public class EndpointService {
     public String post(String url, String body) {
         return getNoAuthRestClient().post().uri(url)
                 .body(body).contentType(MediaType.APPLICATION_JSON)
-                .retrieve().body(String.class);
+                .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
+                    throw new HttpClientErrorException(response.getStatusCode(), 
+                        "HTTP " + response.getStatusCode().value() + " " + response.getStatusCode().toString() + " for URL: " + url);
+                })
+                .onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
+                    throw new HttpClientErrorException(response.getStatusCode(), 
+                        "HTTP " + response.getStatusCode().value() + " " + response.getStatusCode().toString() + " for URL: " + url);
+                })
+                .body(String.class);
     }
 
 
