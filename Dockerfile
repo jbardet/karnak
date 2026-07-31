@@ -9,7 +9,7 @@ WORKDIR /app
 # Build the Spring Boot application with layers
 COPY pom.xml .
 COPY src ./src
-RUN mvn -B package -P production
+RUN mvn -B package -P production -DskipTests
 WORKDIR /app/bin
 RUN cp ../target/karnak*.jar application.jar
 RUN java -Djarmode=tools -jar application.jar extract --layers --destination extracted
