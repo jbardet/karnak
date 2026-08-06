@@ -7,7 +7,13 @@ Automates three steps against the Karnak REST API:
   2. Create a project linked to that profile (+ generate an HMAC secret)
   3. Add a de-identified DICOM destination to a forward node using that project
 
-Uses form-login session authentication via _karnak_api.KarnakClient.
+Uses form-login session authentication via `karnak_api_client.KarnakClient`.
+
+Install the client first:
+
+```sh
+pip install "karnak-api-client @ git+https://github.com/jbardet/karnak-api-client.git@v0.1.0"
+```
 
 Usage
 -----
@@ -33,13 +39,8 @@ Usage
 
 import argparse
 import sys
-from pathlib import Path
 
-# The client lives in python-client/ (installable as karnak-api-client); the
-# path insert lets this script run from a bare checkout without pip install.
-sys.path.insert(0, str(Path(__file__).resolve().parent / "python-client"))
-
-from karnak_api_client import ApiError, AuthenticationError, KarnakClient, KarnakError  # noqa: E402
+from karnak_api_client import ApiError, AuthenticationError, KarnakClient, KarnakError
 
 PSEUDONYM_TYPES = ("CACHE_EXTID", "EXTID_IN_TAG", "EXTID_API")
 
