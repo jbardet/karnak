@@ -7,9 +7,9 @@ This document covers every REST API endpoint exposed by Karnak, with full reques
 **Authentication:** HTTP Basic or Spring form-login session cookie (all endpoints except `/api/echo/destinations`).
 > With the default in-memory IdP this build accepts HTTP Basic on `/api/*`.
 > Form-login also works: POST credentials to `/login` once and carry the
-> resulting `JSESSIONID` cookie on every subsequent request.  The Python
-> package in `python-client/` (`karnak-api-client`) handles both via
-> `KarnakClient` (auth_mode `auto`/`basic`/`form`).
+> resulting `JSESSIONID` cookie on every subsequent request.  The companion
+> Python package [`karnak-api-client`](https://github.com/jbardet/karnak-api-client)
+> handles both via `KarnakClient` (auth_mode `auto`/`basic`/`form`).
 >
 > ```
 > POST /login
