@@ -165,7 +165,7 @@ public class TransferMonitoringService {
 	}
 
 	/** Fills each row's transient {@code reasons} with its distinct error reasons. */
-	public void populateReasons(List<TransferSeriesStatusEntity> rows) {
+	private void populateReasons(List<TransferSeriesStatusEntity> rows) {
 		if (rows.isEmpty()) {
 			return;
 		}
