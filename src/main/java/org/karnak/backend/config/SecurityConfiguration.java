@@ -94,7 +94,7 @@ public class SecurityConfiguration {
 			// reject every POST/PUT/DELETE call to /api/** with 403, regardless of
 			// valid credentials, so exempt it the same way a stateless REST API
 			// conventionally is exempted.
-			.csrf(csrf -> csrf.ignoringRequestMatchers("/api/**"))
+.csrf(csrf -> csrf.ignoringRequestMatchers(request -> request.getServletPath().startsWith("/api/") && request.getHeader("Authorization") != null))
 			// OpenId connect login: map the IDP realm/client roles to the Karnak roles
 			// so that @RolesAllowed annotations on the views work with OIDC users. The
 			// roles are read from the Bearer/access token (not the ID token) via a
