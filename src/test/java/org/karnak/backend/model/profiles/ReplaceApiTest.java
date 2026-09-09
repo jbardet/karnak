@@ -16,6 +16,7 @@ import static org.mockito.Mockito.when;
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.VR;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -310,6 +311,13 @@ public class ReplaceApiTest {
 		profile.applyAction(dataset1, dataset1, null, null, null, null);
 
 		assertEquals("dummy", dataset1.getString(Tag.PatientID));
+	}
+
+	@AfterAll
+	static void tearDownStatic() {
+		if (acp != null) {
+			acp.close();
+		}
 	}
 
 }
