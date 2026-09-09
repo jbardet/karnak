@@ -13,11 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -199,6 +201,33 @@ class HMACTest {
 	@MethodSource("providerScaleHash")
 	void scaleHash(HMAC hmac, String value, int scaledMin, int scaledMax, double output) {
 		assertEquals(output, hmac.scaleHash(value, scaledMin, scaledMax));
+	}
+
+	@ParameterizedTest
+	@MethodSource("providerDigitHashLength")
+	void digitHashHasExactLengthAndIsNumeric(HMAC hmac, String value, int digits) {
+		String out = hmac.digitHash(value, digits);
+		assertEquals(digits, out.length());
+		assertTrue(out.chars().allMatch(Character::isDigit));
+	}
+
+	private static Stream<Arguments> providerDigitHashLength() {
+		return Stream.of(Arguments.of(hmac1, "DOE^JOHN", 10), Arguments.of(hmac1, "a", 10), Arguments.of(hmac2, "DOE^JOHN", 6),
+				Arguments.of(hmac3, "DOE^JOHN", 18));
+	}
+
+	@Test
+	void digitHashIsDeterministicPerKeyAndKeySensitive() {
+		assertEquals(hmac1.digitHash("DOE^JOHN", 10), hmac1_same.digitHash("DOE^JOHN", 10));
+		assertNotEquals(hmac1.digitHash("DOE^JOHN", 10), hmac2.digitHash("DOE^JOHN", 10));
+		assertNotEquals(hmac1.digitHash("DOE^JOHN", 10), hmac1.digitHash("DOE^JANE", 10));
+	}
+
+	@Test
+	void digitHashRejectsBadInput() {
+		assertThrows(IllegalArgumentException.class, () -> hmac1.digitHash("", 10));
+		assertThrows(IllegalArgumentException.class, () -> hmac1.digitHash("x", 0));
+		assertThrows(IllegalArgumentException.class, () -> hmac1.digitHash("x", 19));
 	}
 
 	@ParameterizedTest

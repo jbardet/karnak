@@ -326,10 +326,27 @@ public class Profile {
 		MDC.put("PatientID", PatientID);
 
 		String pseudonymValue = this.pseudonym.generatePseudonym(destinationEntity, dcm);
+		// Original PatientName, captured before applyAction / setPatientModule mutate `dcm`.
+		final String originalPatientName = dcm.getString(Tag.PatientName);
 
 		String profilesCodeName = profiles.stream().map(ProfileItem::getCodeName).collect(Collectors.joining("-"));
-		BigInteger patientValue = generatePatientID(pseudonymValue, hmac);
-		String newPatientID = patientValue.toString(16).toUpperCase();
+
+		// Patient identity tag layout.
+		// Default (Karnak): PatientID <- HMAC(project_secret, pseudonym) hex,
+		//                   PatientName <- raw pseudonym.
+		// CTP-parity (KARNAK_CTP_PATIENT_LAYOUT=true): PatientID <- raw research
+		//   pseudonym (extid), PatientName <- keyed HMAC of the original PatientName
+		//   as a 10-digit decimal string. Mirrors CTP @hash(this,10) / @hashname.
+		final String newPatientID;
+		final String newPatientName;
+		if (ctpPatientLayoutEnabled()) {
+			newPatientID = pseudonymValue;
+			newPatientName = StringUtil.hasText(originalPatientName) ? hmac.digitHash(originalPatientName, 10) : "";
+		}
+		else {
+			newPatientID = generatePatientID(pseudonymValue, hmac).toString(16).toUpperCase();
+			newPatientName = pseudonymValue;
+		}
 
 		Attributes dcmCopy = new Attributes(dcm);
 
@@ -342,7 +359,7 @@ public class Profile {
 		applyAction(dcm, dcmCopy, hmac, null, null, context);
 
 		// Set tags by default
-		AttributesByDefault.setPatientModule(dcm, newPatientID, pseudonymValue,
+		AttributesByDefault.setPatientModule(dcm, newPatientID, newPatientName,
 				destinationEntity.getDeIdentificationProjectEntity());
 		AttributesByDefault.setSOPCommonModule(dcm);
 		AttributesByDefault.setClinicalTrialAttributes(dcm, destinationEntity.getDeIdentificationProjectEntity(),
@@ -412,6 +429,23 @@ public class Profile {
 		byte[] bytes = new byte[16];
 		System.arraycopy(hmac.byteHash(pseudonym), 0, bytes, 0, 16);
 		return new BigInteger(1, bytes);
+	}
+
+	/**
+	 * When enabled, the de-identifier writes the raw external research pseudonym
+	 * (extid) to PatientID and a keyed HMAC digest of the original PatientName to
+	 * PatientName, instead of Karnak's default (HMAC on PatientID, extid on
+	 * PatientName). This reproduces the CTP tag layout for legacy data parity.
+	 *
+	 * <p>
+	 * Off by default. Set via the {@code KARNAK_CTP_PATIENT_LAYOUT} environment
+	 * variable (per-deployment config, never baked into the image); the
+	 * {@code karnak.ctpPatientLayout} system property overrides it for tests.
+	 */
+	static boolean ctpPatientLayoutEnabled() {
+		String value = System.getProperty("karnak.ctpPatientLayout",
+				System.getenv().getOrDefault("KARNAK_CTP_PATIENT_LAYOUT", "false"));
+		return Boolean.parseBoolean(value);
 	}
 
 }

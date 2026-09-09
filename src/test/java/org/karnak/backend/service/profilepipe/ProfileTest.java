@@ -11,6 +11,7 @@ package org.karnak.backend.service.profilepipe;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -101,6 +102,72 @@ class ProfileTest {
 		// Test results
 		assertEquals("NONE", context.getAbort().name());
 		assertNull(context.getMaskArea());
+	}
+
+	private static Attributes runPatientLayoutScenario() {
+		ProjectEntity projectEntity = new ProjectEntity();
+		ProfileEntity profileEntityProject = new ProfileEntity();
+		projectEntity.setProfileEntity(profileEntityProject);
+		byte[] secret = new byte[16];
+		secret[0] = 1;
+		projectEntity.addActiveSecretEntity(new SecretEntity(secret));
+
+		DestinationEntity destinationEntity = new DestinationEntity();
+		destinationEntity.setDestinationType(DestinationType.dicom);
+		destinationEntity.setDeIdentificationProjectEntity(projectEntity);
+		destinationEntity.setPseudonymType(PseudonymType.EXTID_IN_TAG);
+		destinationEntity.setTag("0010,1000");
+		destinationEntity.setSavePseudonym(false);
+
+		ProfileEntity profileEntity = new ProfileEntity();
+		ProfileElementEntity basic = new ProfileElementEntity();
+		basic.setCodename("basic.dicom.profile");
+		basic.setName("basic");
+		basic.setPosition(1);
+		basic.setAction("ReplaceNull");
+		Set<ProfileElementEntity> elements = new HashSet<>();
+		elements.add(basic);
+		profileEntity.setProfileElementEntities(elements);
+
+		Attributes attributes = new Attributes();
+		attributes.setString(Tag.PatientID, VR.LO, "0123456789");
+		attributes.setString(Tag.PatientName, VR.PN, "DOE^JOHN");
+		attributes.setString(Tag.OtherPatientIDs, VR.LO, "RESEARCH-042");
+		attributes.setString(Tag.SeriesInstanceUID, VR.UI, "seriesInstanceUID");
+		attributes.setString(Tag.SOPInstanceUID, VR.UI, "sopInstanceUID");
+
+		AttributeEditorContext context = new AttributeEditorContext("tsuid", null, null);
+		new Profile(profileEntity).applyDeIdentification(attributes, destinationEntity, profileEntity, context,
+				projectEntity);
+		return attributes;
+	}
+
+	@Test
+	void default_patient_layout_puts_pseudonym_on_patient_name() {
+		System.clearProperty("karnak.ctpPatientLayout");
+		Attributes out = runPatientLayoutScenario();
+
+		assertEquals("RESEARCH-042", out.getString(Tag.PatientName));
+		assertNotEquals("RESEARCH-042", out.getString(Tag.PatientID));
+		assertEquals("YES", out.getString(Tag.PatientIdentityRemoved));
+	}
+
+	@Test
+	void ctp_patient_layout_puts_extid_on_patient_id_and_hashes_the_name() {
+		System.setProperty("karnak.ctpPatientLayout", "true");
+		try {
+			Attributes out = runPatientLayoutScenario();
+
+			assertEquals("RESEARCH-042", out.getString(Tag.PatientID));
+			String name = out.getString(Tag.PatientName);
+			assertEquals(10, name.length());
+			assertTrue(name.chars().allMatch(Character::isDigit));
+			assertNotEquals("DOE^JOHN", name);
+			assertEquals("YES", out.getString(Tag.PatientIdentityRemoved));
+		}
+		finally {
+			System.clearProperty("karnak.ctpPatientLayout");
+		}
 	}
 
 	@Test

@@ -132,4 +132,30 @@ public class HMAC {
 		return bytes;
 	}
 
+	/**
+	 * Keyed, non-reversible numeric pseudonym: the leading 8 bytes of
+	 * HMAC-SHA256(secret, value) reduced modulo 10^digits and rendered as a
+	 * zero-padded decimal string of exactly {@code digits} characters.
+	 *
+	 * <p>
+	 * Deterministic for a given project secret and input. Used for CTP-style name
+	 * hashing (mirrors CTP {@code @hash(this,10)} / {@code @hashname}), where the
+	 * output must look like a numeric identifier rather than a DICOM UID.
+	 * @param value input string, must be non-empty
+	 * @param digits number of decimal digits to emit, 1..18
+	 * @return a string of exactly {@code digits} decimal characters
+	 */
+	public String digitHash(String value, int digits) {
+		if (!StringUtil.hasText(value)) {
+			throw new IllegalArgumentException("digitHash: value must not be empty");
+		}
+		if (digits < 1 || digits > 18) {
+			throw new IllegalArgumentException("digitHash: digits must be in 1..18");
+		}
+		final byte[] head = new byte[8];
+		System.arraycopy(byteHash(value), 0, head, 0, 8);
+		BigInteger n = new BigInteger(1, head).mod(BigInteger.TEN.pow(digits));
+		return String.format("%0" + digits + "d", n);
+	}
+
 }
