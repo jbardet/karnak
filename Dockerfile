@@ -1,6 +1,16 @@
+# This is the fork's build: a self-contained maven build that produces an image running
+# as root (no USER directive), which is what the consuming pipeline's entrypoint wrapper
+# needs (it runs `mkdir -p /var/lib/karnak/ssl` and `keytool` at container start). Do not
+# replace it with src/main/docker/Dockerfile: that one expects a pre-built jar and sets
+# `USER 1001:1001`, which breaks that wrapper.
+#
 # To build, run the following command from the top level project directory:
 #
-# docker build -t nroduit/karnak:latest -f Dockerfile .
+# docker build -t jbardet97/karnak-endpoints:<upstream-version>-api.<n> -f Dockerfile .
+#
+# Do NOT tag the result as nroduit/karnak: that is upstream's image name/repository, and
+# pushing to it would shadow the real upstream image, silently invalidating the digest
+# pins of every repo that consumes it.
 
 # Based on build image containing maven, jdk and git
 FROM maven:3.9-eclipse-temurin-25-noble AS builder
