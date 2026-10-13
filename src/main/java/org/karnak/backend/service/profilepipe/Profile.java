@@ -569,7 +569,13 @@ public class Profile {
 		final String newPatientName;
 		if (ctpPatientLayoutEnabled()) {
 			newPatientID = pseudonymValue;
-			newPatientName = StringUtil.hasText(originalPatientName) ? hmac.digitHash(originalPatientName, 10) : "";
+			if (ctpPatientNameExtidEnabled()) {
+				newPatientName = pseudonymValue;
+			}
+			else {
+				newPatientName = StringUtil.hasText(originalPatientName) ? hmac.digitHash(originalPatientName, 10)
+						: "";
+			}
 		}
 		else {
 			newPatientID = this.generatePatientID(pseudonymValue, hmac).toString(16).toUpperCase();
@@ -660,6 +666,24 @@ public class Profile {
 	static boolean ctpPatientLayoutEnabled() {
 		String value = System.getProperty("karnak.ctpPatientLayout",
 				System.getenv().getOrDefault("KARNAK_CTP_PATIENT_LAYOUT", "false"));
+		return Boolean.parseBoolean(value);
+	}
+
+	/**
+	 * Only read when {@link #ctpPatientLayoutEnabled()} is true: put the raw research
+	 * pseudonym (extid) on PatientName as well, instead of the 10-digit keyed hash of the
+	 * original PatientName. Both PatientID and PatientName then carry the extid, which is
+	 * what a consumer that names its subjects from PatientName (Shanoir's STOW-RS
+	 * importer) needs while PatientID stays the research identifier.
+	 *
+	 * <p>
+	 * Off by default. Set via the {@code KARNAK_CTP_PATIENT_NAME_EXTID} environment
+	 * variable; the {@code karnak.ctpPatientNameExtid} system property overrides it for
+	 * tests.
+	 */
+	static boolean ctpPatientNameExtidEnabled() {
+		String value = System.getProperty("karnak.ctpPatientNameExtid",
+				System.getenv().getOrDefault("KARNAK_CTP_PATIENT_NAME_EXTID", "false"));
 		return Boolean.parseBoolean(value);
 	}
 

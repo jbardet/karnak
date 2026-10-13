@@ -180,6 +180,38 @@ class ProfileTest {
 	}
 
 	@Test
+	void ctp_patient_layout_with_name_extid_puts_the_extid_on_both_tags() {
+		System.setProperty("karnak.ctpPatientLayout", "true");
+		System.setProperty("karnak.ctpPatientNameExtid", "true");
+		try {
+			Attributes out = runPatientLayoutScenario();
+
+			assertEquals("RESEARCH-042", out.getString(Tag.PatientID));
+			assertEquals("RESEARCH-042", out.getString(Tag.PatientName));
+			assertEquals("YES", out.getString(Tag.PatientIdentityRemoved));
+		}
+		finally {
+			System.clearProperty("karnak.ctpPatientLayout");
+			System.clearProperty("karnak.ctpPatientNameExtid");
+		}
+	}
+
+	@Test
+	void name_extid_flag_alone_leaves_the_default_layout_untouched() {
+		System.clearProperty("karnak.ctpPatientLayout");
+		System.setProperty("karnak.ctpPatientNameExtid", "true");
+		try {
+			Attributes out = runPatientLayoutScenario();
+
+			assertEquals("RESEARCH-042", out.getString(Tag.PatientName));
+			assertNotEquals("RESEARCH-042", out.getString(Tag.PatientID));
+		}
+		finally {
+			System.clearProperty("karnak.ctpPatientNameExtid");
+		}
+	}
+
+	@Test
 	void should_evaluate_condition_clean_pixel_case_no_condition() {
 
 		// Init data
