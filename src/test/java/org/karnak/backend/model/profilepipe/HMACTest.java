@@ -211,4 +211,38 @@ class HMACTest {
 
 	}
 
+	@Nested
+	class DigitHash {
+
+		@Test
+		void has_exact_length_and_is_numeric() {
+			HMAC hmac = new HMAC(KEY);
+			String out = hmac.digitHash("DOE^JOHN", 10);
+
+			assertEquals(10, out.length());
+			assertTrue(out.chars().allMatch(Character::isDigit));
+		}
+
+		@Test
+		void is_deterministic_per_key_and_key_sensitive() {
+			HMAC hmac1 = new HMAC(KEY);
+			HMAC hmac2 = new HMAC(KEY);
+			byte[] otherKey = HMAC.hexToByte("fedcba9876543210fedcba9876543210");
+
+			assertEquals(hmac1.digitHash("DOE^JOHN", 10), hmac2.digitHash("DOE^JOHN", 10));
+			assertNotEquals(hmac1.digitHash("DOE^JOHN", 10), new HMAC(otherKey).digitHash("DOE^JOHN", 10));
+			assertNotEquals(hmac1.digitHash("DOE^JOHN", 10), hmac1.digitHash("DOE^JANE", 10));
+		}
+
+		@Test
+		void rejects_bad_input() {
+			HMAC hmac = new HMAC(KEY);
+
+			assertThrows(IllegalArgumentException.class, () -> hmac.digitHash("", 10));
+			assertThrows(IllegalArgumentException.class, () -> hmac.digitHash("x", 0));
+			assertThrows(IllegalArgumentException.class, () -> hmac.digitHash("x", 19));
+		}
+
+	}
+
 }
