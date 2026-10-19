@@ -32,9 +32,10 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
+          # No ":latest": it pointed at a v1.x image (1.1.1-api.5), and a v2 image refuses to
+          # start on a v1 database. Deployments pin a digest; nothing should follow a moving tag.
           tags: |
             jbardet97/karnak-endpoints:${{ github.ref_name }}
-            jbardet97/karnak-endpoints:latest
 
       - name: Print image digest
         run: |
