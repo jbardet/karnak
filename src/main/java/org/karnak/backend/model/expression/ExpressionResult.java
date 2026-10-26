@@ -17,7 +17,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.VR;
 import org.jspecify.annotations.Nullable;
-import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.PropertyAccessor;
