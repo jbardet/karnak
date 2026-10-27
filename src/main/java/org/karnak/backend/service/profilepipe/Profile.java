@@ -268,8 +268,8 @@ public class Profile {
 
 	/** Whether the optional condition of a profile item holds for the current object. */
 	private static boolean conditionMatches(ProfileItem profileEntity, ExprCondition exprCondition) {
-		return profileEntity.getCondition() == null
-				|| (Boolean) ExpressionResult.get(profileEntity.getCondition(), exprCondition, Boolean.class);
+		return profileEntity.getCondition() == null || Boolean.TRUE
+			.equals(ExpressionResult.get(profileEntity.getCondition(), exprCondition, Boolean.class));
 	}
 
 	/**
@@ -296,8 +296,8 @@ public class Profile {
 					currentAction = profileEntity.getAction(dcm, original, tag, hmac, path);
 				}
 				else {
-					boolean conditionIsOk = (Boolean) ExpressionResult.get(profileEntity.getCondition(), exprCondition,
-							Boolean.class);
+					boolean conditionIsOk = Boolean.TRUE
+						.equals(ExpressionResult.get(profileEntity.getCondition(), exprCondition, Boolean.class));
 					if (conditionIsOk) {
 						currentAction = profileEntity.getAction(dcm, original, tag, hmac, path);
 					}
@@ -514,8 +514,8 @@ public class Profile {
 		if (profileItemCleanPixelData != null && profileItemCleanPixelData.getCondition() != null) {
 			// Evaluate the condition
 			ExprCondition exprCondition = new ExprCondition(original);
-			conditionCleanPixelData = (Boolean) ExpressionResult.get(profileItemCleanPixelData.getCondition(),
-					exprCondition, Boolean.class);
+			conditionCleanPixelData = Boolean.TRUE
+				.equals(ExpressionResult.get(profileItemCleanPixelData.getCondition(), exprCondition, Boolean.class));
 		}
 		return conditionCleanPixelData;
 	}
@@ -531,8 +531,8 @@ public class Profile {
 			}
 			else {
 				ExprCondition exprCondition = new ExprCondition(original);
-				boolean conditionIsOk = (Boolean) ExpressionResult.get(profileItemDefacing.getCondition(),
-						exprCondition, Boolean.class);
+				boolean conditionIsOk = Boolean.TRUE
+					.equals(ExpressionResult.get(profileItemDefacing.getCondition(), exprCondition, Boolean.class));
 				if (conditionIsOk) {
 					context.getProperties().setProperty(Defacer.APPLY_DEFACING, "true");
 				}

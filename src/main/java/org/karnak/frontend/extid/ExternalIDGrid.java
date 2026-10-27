@@ -54,7 +54,7 @@ public class ExternalIDGrid extends Grid<PatientModel> {
 
 	private final PatientFilter patientFilter = new PatientFilter();
 
-	private GridListDataView<PatientModel> dataView;
+	private final GridListDataView<PatientModel> dataView;
 
 	@Getter
 	@Setter

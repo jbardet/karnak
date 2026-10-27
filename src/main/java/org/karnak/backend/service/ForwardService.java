@@ -446,6 +446,9 @@ public class ForwardService {
 			monitor(sourceNode, destination, attributesOriginal, attributesToSend, false, true, errorReason(e),
 					attributesOriginal.getString(Tag.Modality), p.cuid(), p.tsuid());
 			log.error(ERROR_WHEN_FORWARDING, e);
+			if (e instanceof InterruptedException) {
+				Thread.currentThread().interrupt();
+			}
 		}
 		finally {
 			streamSCU.triggerCloseExecutor();
@@ -891,6 +894,9 @@ public class ForwardService {
 			monitor(fwdNode, destination, attributesOriginal, attributesToSend, false, true, errorReason(e),
 					attributesOriginal.getString(Tag.Modality), p.cuid(), p.tsuid());
 			log.error(ERROR_WHEN_FORWARDING, e);
+			if (e instanceof InterruptedException) {
+				Thread.currentThread().interrupt();
+			}
 		}
 		finally {
 			streamSCU.triggerCloseExecutor();
@@ -971,6 +977,9 @@ public class ForwardService {
 			monitor(fwdNode, destination, attributesOriginal, attributesToSend, false, true, errorReason(e),
 					attributesOriginal.getString(Tag.Modality), p.cuid(), p.tsuid());
 			log.error(ERROR_WHEN_FORWARDING, e);
+			if (e instanceof InterruptedException) {
+				Thread.currentThread().interrupt();
+			}
 		}
 		finally {
 			files = cleanOrGetBulkDataFiles(in, copy == null);
@@ -1068,6 +1077,9 @@ public class ForwardService {
 			monitor(fwdNode, destination, attributesOriginal, attributesToSend, false, true, errorReason(e),
 					attributesOriginal.getString(Tag.Modality), p.cuid(), p.tsuid());
 			log.error(ERROR_WHEN_FORWARDING, e);
+			if (e instanceof InterruptedException) {
+				Thread.currentThread().interrupt();
+			}
 		}
 	}
 
@@ -1123,6 +1135,9 @@ public class ForwardService {
 			monitor(fwdNode, destination, attributesOriginal, attributesToSend, false, true, errorReason(e),
 					attributesOriginal.getString(Tag.Modality), p.cuid(), p.tsuid());
 			log.error(ERROR_WHEN_FORWARDING, e);
+			if (e instanceof InterruptedException) {
+				Thread.currentThread().interrupt();
+			}
 		}
 		finally {
 			files = cleanOrGetBulkDataFiles(in, copy == null);
@@ -1166,6 +1181,9 @@ public class ForwardService {
 			monitor(fwdNode, destination, attributesOriginal, attributesToSend, false, true, errorReason(e),
 					attributesOriginal.getString(Tag.Modality), p.cuid(), p.tsuid());
 			log.error(ERROR_WHEN_FORWARDING, e);
+			if (e instanceof InterruptedException) {
+				Thread.currentThread().interrupt();
+			}
 		}
 	}
 
