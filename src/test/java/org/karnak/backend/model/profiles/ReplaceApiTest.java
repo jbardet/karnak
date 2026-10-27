@@ -9,12 +9,15 @@
  */
 package org.karnak.backend.model.profiles;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.when;
+
 import org.dcm4che3.data.Attributes;
 import org.dcm4che3.data.Tag;
 import org.dcm4che3.data.VR;
 import org.junit.jupiter.api.AfterAll;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,8 +32,6 @@ import org.karnak.backend.service.EndpointService;
 import org.karnak.backend.service.profilepipe.Profile;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.when;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.TestPropertySource;
@@ -83,8 +84,7 @@ public class ReplaceApiTest {
 			.thenThrow(new IllegalArgumentException("Authentication Code " + UNKNOWN_AUTH_CONFIG + " is not defined"));
 		when(endpointService.get(AUTH_CONFIG, TEST_UNKNOWN_URL))
 			.thenThrow(new HttpClientErrorException(HttpStatus.NOT_FOUND));
-		when(endpointService.get(AUTH_CONFIG, TEST_URL + "/not-json"))
-				.thenReturn("12345");
+		when(endpointService.get(AUTH_CONFIG, TEST_URL + "/not-json")).thenReturn("12345");
 
 		acp.when(() -> ApplicationContextProvider.bean(EndpointService.class)).thenReturn(endpointService);
 	}
@@ -436,7 +436,8 @@ public class ReplaceApiTest {
 		Profile profile = new Profile(profileEntity);
 		profile.applyAction(dataset1, dataset1, null, null, null, null);
 
-		assertEquals("{\"id\":411,\"type\":\"ZAWIN\",\"value\":\"78727671\"}", dataset1.getString(Tag.StudyDescription));
+		assertEquals("{\"id\":411,\"type\":\"ZAWIN\",\"value\":\"78727671\"}",
+				dataset1.getString(Tag.StudyDescription));
 	}
 
 }

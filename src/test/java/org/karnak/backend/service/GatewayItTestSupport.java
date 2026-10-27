@@ -12,6 +12,7 @@ package org.karnak.backend.service;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.BindException;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -90,12 +91,25 @@ abstract class GatewayItTestSupport {
 	}
 
 	protected Scp startScp(String aet) throws Exception {
-		int port = freePort();
-		Path dir = Files.createDirectories(workDir.resolve("scp-" + port));
-		DicomListener listener = new DicomListener(dir);
-		listener.start(new DicomNode(aet, null, port), new ListenerParams(true));
-		listeners.add(listener);
-		return new Scp(aet, port, dir);
+		// freePort() releases the port before the listener binds it, so another process
+		// can grab it in between: retry on a fresh port when the bind fails.
+		for (int attempt = 1;; attempt++) {
+			int port = freePort();
+			Path dir = Files.createDirectories(workDir.resolve("scp-" + port));
+			DicomListener listener = new DicomListener(dir);
+			try {
+				listener.start(new DicomNode(aet, null, port), new ListenerParams(true));
+			}
+			catch (IOException e) {
+				listener.stop();
+				if (attempt >= 5 || !(e.getCause() instanceof BindException)) {
+					throw e;
+				}
+				continue;
+			}
+			listeners.add(listener);
+			return new Scp(aet, port, dir);
+		}
 	}
 
 	@AfterEach
